@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="mb-3">Auto-Response Dashboard</h2>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-header">Sent Replies</div>
+            <div class="card-body">
+                <h5 class="card-title">{{ stats.sent }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-header">Skipped</div>
+            <div class="card-body">
+                <h5 class="card-title">{{ stats.skipped }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-header">Errors</div>
+            <div class="card-body">
+                <h5 class="card-title">{{ stats.errors }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contact Profiles Section -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                Contact Profiles (CRM)
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if contacts %}
+                <ul class="list-group list-group-flush">
+                    {% for contact in contacts %}
+                    <li class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">{{ contact.name or contact.email }}</h5>
+                            <small class="text-muted">{{ contact.last_updated[:10] }}</small>
+                        </div>
+                        <p class="mb-1"><strong>{{ contact.email }}</strong></p>
+                        <small class="text-muted">{{ contact.summary }}</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted p-2">No contact profiles yet. Wait for incoming emails.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Interactions Section -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                Recent Interaction Summaries
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if interactions %}
+                <div class="list-group">
+                    {% for interaction in interactions %}
+                    <a href="#" class="list-group-item list-group-item-action flex-column align-items-start">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ interaction.subject }}</h6>
+                            <small>{{ interaction.timestamp[11:16] }}</small>
+                        </div>
+                        <p class="mb-1"><strong>Incoming:</strong> {{ interaction.incoming_summary }}</p>
+                        <small class="text-muted"><strong>Response:</strong> {{ interaction.response_content[:100]
+                            }}...</small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted p-2">No interactions recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        Raw Activity Logs
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th style="width: 15%">Time</th>
+                        <th style="width: 20%">Recipient</th>
+                        <th style="width: 20%">Subject</th>
+                        <th style="width: 10%">Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.timestamp }}</td>
+                        <td>{{ log.recipient }}</td>
+                        <td>{{ log.subject }}</td>
+                        <td>
+                            {% if log.status == 'sent' %}
+                            <span class="badge bg-success">Sent</span>
+                            {% elif log.status == 'skipped' %}
+                            <span class="badge bg-warning text-dark">Skipped</span>
+                            {% else %}
+                            <span class="badge bg-danger">Error</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.details }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
