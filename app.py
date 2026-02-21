@@ -15,6 +15,7 @@ import sqlite3
 from datetime import datetime
 from google import genai
 from dotenv import load_dotenv
+import rag_engine
 
 # Load environment variables
 load_dotenv()
@@ -31,6 +32,11 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 SMTP_SERVER = 'smtp.gmail.com'
 SMTP_PORT = 587
 IMAP_SERVER = 'imap.gmail.com'
+
+# Branding Config
+ORG_NAME = os.getenv('ORG_NAME', 'the business')
+ORG_TYPE = os.getenv('ORG_TYPE', 'professional service')
+CONTACT_DETAILS = os.getenv('CONTACT_DETAILS', 'our team')
 
 # Configure Gemini
 if GEMINI_API_KEY:
@@ -152,18 +158,27 @@ def generate_ai_reply(sender, subject, body):
         return "Thank you for your email. This is an automated response."
 
     try:
+        # --- RAG: Fetch Context ---
+        context = rag_engine.query_knowledge_base(body)
+        
         prompt = f"""
-        You are the owner of this email account. 
+        You are the AI assistant for {ORG_NAME}, a {ORG_TYPE}.
         Please draft a natural, human-like, and professional reply to the following email.
+        
+        KNOWLEDGE BASE CONTEXT (Use this to answer accurately):
+        {context if context else "No specific documents found for this query. Answer generally or ask for clarification based on business common sense."}
         
         Sender: {sender}
         Subject: {subject}
         Content:
         {body}
         
-        The reply should be concise. Do NOT sound like an automated bot or AI. Do NOT say "I will get back to you shortly" unless it fits naturally. 
-        Respond as if you are a busy professional acknowledging the email.
-        Sign off with "Best regards".
+        Guidelines:
+        1. Be concise and professional.
+        2. If the context contains the answer, use it. 
+        3. If you don't know the answer, politely mention they can contact {CONTACT_DETAILS}.
+        4. Do NOT sound like a bot.
+        5. Sign off with "Best regards, \n{ORG_NAME} Team".
         """
         response = client.models.generate_content(
             model='gemini-2.0-flash', 
@@ -372,8 +387,12 @@ if __name__ == '__main__':
          # but actually create tables safely
          pass
 
-    # However, for simplicity in dev with reload, ensure tables exist
+    # Ensure tables and RAG index exist
     init_db()
+    try:
+        rag_engine.process_pdfs()
+    except Exception as e:
+        print(f"RAG Indexing Error: {e}")
 
     # Start the background thread ONLY if we are in the main reloader process
     # WERKZEUG_RUN_MAIN is set by Flask when it spawns the child process

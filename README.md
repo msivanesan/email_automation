@@ -5,6 +5,8 @@ This is a smart Flask application that acts as an automated, intelligent email a
 ## Key Features
 
 -   **🤖 AI Auto-Response**: Automatically replies to new emails using **Gemini 2.0 Flash**. Responses are crafted to sound natural and professional, not robotic.
+-   **📚 Advanced RAG (Retrieval-Augmented Generation)**: The bot reads your company's PDF documents (policies, catalogs, FAQs) to provide accurate, grounded answers.
+-   **🏢 Dynamic Branding**: Configure your company name, type, and contact details via `.env` to personalize every response.
 -   **🧠 Intelligent CRM**:
     -   **Summarization**: Instantly summarizes every incoming email into a single sentence.
     -   **Contact Profiles**: Builds a dynamic profile for every person who emails you, tracking who they are and their relationship to you based on your history.
@@ -52,16 +54,22 @@ This is a smart Flask application that acts as an automated, intelligent email a
     .\run.ps1
     ```
 
-6.  **Access the Dashboard**:
+6.  **Add Your Knowledge Base**:
+    Place your PDF files (e.g., `company_policy.pdf`, `product_list.pdf`) into the `docs/` folder. The bot will automatically index them on startup.
+
+7.  **Access the Dashboard**:
     Open your browser and navigate to:
     [http://127.0.0.1:5000/dashboard](http://127.0.0.1:5000/dashboard)
 
 ## Project Structure
 
--   `app.py`: Logic for Flask web server, background email polling, AI generation, and database management.
--   `email_bot.db`: SQLite database storing logs, contact profiles, and conversation history.
+-   `app.py`: Logic for Flask web server, background email polling, and UI.
+-   `rag_engine.py`: Vector database management, PDF processing, and semantic search.
+-   `docs/`: Your knowledge base (PDFs).
+-   `vector_db/`: Persistent Qdrant vector storage.
+-   `email_bot.db`: SQLite database for logs and CRM history.
 -   `templates/dashboard.html`: The frontend interface.
--   `requirements.txt`: Python dependencies (`Flask`, `google-genai`, `python-dotenv`).
+-   `requirements.txt`: Python dependencies.
 
 ## Customization
 
