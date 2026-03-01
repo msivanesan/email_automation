@@ -14,8 +14,15 @@ DOCS_DIR = 'docs'
 VECTOR_DB_DIR = 'vector_db'
 COLLECTION_NAME = 'email_knowledge'
 
-# Initialize Clients
-qdrant = QdrantClient(path=VECTOR_DB_DIR)
+# Lazy loader for Qdrant client to avoid lock issues in Flask debug mode
+_qdrant = None
+def get_qdrant():
+    global _qdrant
+    if _qdrant is None:
+        _qdrant = QdrantClient(path=VECTOR_DB_DIR)
+    return _qdrant
+
+# genai_client is fine but we'll use a similar approach for consistency if needed
 if GEMINI_API_KEY:
     genai_client = genai.Client(api_key=GEMINI_API_KEY)
 else:
@@ -27,7 +34,7 @@ def get_embedding(text):
         return None
     try:
         result = genai_client.models.embed_content(
-            model='text-embedding-004',
+            model='gemini-embedding-001',
             contents=text
         )
         return result.embeddings[0].values
@@ -37,13 +44,14 @@ def get_embedding(text):
 
 def init_qdrant():
     """Initializes the Qdrant collection."""
+    qdrant = get_qdrant()
     collections = qdrant.get_collections().collections
     exists = any(c.name == COLLECTION_NAME for c in collections)
     
     if not exists:
         qdrant.create_collection(
             collection_name=COLLECTION_NAME,
-            vectors_config=models.VectorParams(size=768, distance=models.Distance.COSINE),
+            vectors_config=models.VectorParams(size=3072, distance=models.Distance.COSINE),
         )
         print(f"Created collection: {COLLECTION_NAME}")
 
@@ -73,8 +81,8 @@ def process_pdfs():
         filepath = os.path.join(DOCS_DIR, filename)
         file_id = get_file_hash(filepath)
         
-        # Check if file is already indexed using a filter (we can use metadata or a separate tracker)
         # For simplicity in this version, we'll store file_id in payload and check
+        qdrant = get_qdrant()
         existing = qdrant.scroll(
             collection_name=COLLECTION_NAME,
             scroll_filter=models.Filter(
@@ -111,6 +119,7 @@ def process_pdfs():
                 ))
         
         if points:
+            qdrant = get_qdrant()
             qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
             print(f"Successfully indexed {len(points)} chunks from {filename}")
 
@@ -123,6 +132,7 @@ def query_knowledge_base(query_text, limit=3):
     if not query_vector:
         return ""
 
+    qdrant = get_qdrant()
     search_result = qdrant.search(
         collection_name=COLLECTION_NAME,
         query_vector=query_vector,

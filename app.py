@@ -374,29 +374,22 @@ def auto_reply_task():
             mail.logout()
             
         except Exception as e:
-            # print(f"Auto-reply error: {e}") # Reduce noise
-            pass
+            print(f"Auto-reply error: {e}")
+            time.sleep(10) # Avoid tight loop on repeated failure
         
         # Wait before next check
         time.sleep(10)
 
 if __name__ == '__main__':
-    # Initialize DB (run once on startup logic)
-    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
-         # Only run init_db in the main process manager, 
-         # but actually create tables safely
-         pass
+    # Ensure tables and RAG index exist only once (in the main worker process)
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+        init_db()
+        try:
+            rag_engine.process_pdfs()
+        except Exception as e:
+            print(f"RAG Indexing Error: {e}")
 
-    # Ensure tables and RAG index exist
-    init_db()
-    try:
-        rag_engine.process_pdfs()
-    except Exception as e:
-        print(f"RAG Indexing Error: {e}")
-
-    # Start the background thread ONLY if we are in the main reloader process
-    # WERKZEUG_RUN_MAIN is set by Flask when it spawns the child process
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        # Start the background thread
         thread = threading.Thread(target=auto_reply_task)
         thread.daemon = True
         thread.start()
