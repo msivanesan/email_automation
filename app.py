@@ -22,6 +22,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # Change this in production!
+app.debug = True # Set debug mode early to ensure the reloader logic works correctly in __main__
 
 DATABASE = 'email_bot.db'
 
@@ -175,13 +176,15 @@ def generate_ai_reply(sender, subject, body):
         
         Guidelines:
         1. Be concise and professional.
-        2. If the context contains the answer, use it. 
-        3. If you don't know the answer, politely mention they can contact {CONTACT_DETAILS}.
-        4. Do NOT sound like a bot.
-        5. Sign off with "Best regards, \n{ORG_NAME} Team".
+        2. ANALYZE THE HISTORY: This might be a conversation thread ("looped mail"). Read previous messages in the content to understand the context and current situation.
+        3. CLEAN FORMATTING: Do NOT use markdown symbols. No asterisks (**), no bolding, no bullet point symbols that look like code. Use plain text formatting, new lines, and standard capitalization only.
+        4. If the context contains the answer, use it. 
+        5. If you don't know the answer, politely mention they can contact {CONTACT_DETAILS}.
+        6. Do NOT sound like a bot.
+        7. Sign off with "Best regards, \n{ORG_NAME} Team".
         """
         response = client.models.generate_content(
-            model='gemini-2.0-flash', 
+            model='gemini-2.5-flash', 
             contents=prompt
         )
         return response.text.strip()
@@ -194,7 +197,7 @@ def summarize_content(text):
     if not client: return "No AI model available."
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash', 
+            model='gemini-2.5-flash', 
             contents=f"Please summarize the following email content in one sentence:\n\n{text}"
         )
         return response.text.strip()
@@ -231,7 +234,7 @@ def update_contact_profile(email_addr, name, new_content):
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.0-flash', 
+            model='gemini-2.5-flash', 
             contents=prompt
         )
         new_summary = response.text.strip()
@@ -315,10 +318,9 @@ def auto_reply_task():
                                 content_disposition = str(part.get("Content-Disposition"))
                                 if content_type == "text/plain" and "attachment" not in content_disposition:
                                     try:
-                                        email_body = part.get_payload(decode=True).decode()
+                                        email_body += part.get_payload(decode=True).decode() + "\n"
                                     except:
                                         pass
-                                    break 
                         else:
                             try:
                                 email_body = msg.get_payload(decode=True).decode()
@@ -381,8 +383,10 @@ def auto_reply_task():
         time.sleep(10)
 
 if __name__ == '__main__':
-    # Ensure tables and RAG index exist only once (in the main worker process)
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+    # When debug=True, Flask runs two processes: a reloader and the actual worker.
+    # WERKZEUG_RUN_MAIN is set to 'true' in the worker process.
+    # We only want to start background tasks and index PDFs in the worker process.
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         init_db()
         try:
             rag_engine.process_pdfs()
@@ -393,5 +397,13 @@ if __name__ == '__main__':
         thread = threading.Thread(target=auto_reply_task)
         thread.daemon = True
         thread.start()
-        
-    app.run(debug=True)
+    
+    # If not in debug mode, run normally
+    elif not app.debug:
+        init_db()
+        rag_engine.process_pdfs()
+        thread = threading.Thread(target=auto_reply_task)
+        thread.daemon = True
+        thread.start()
+
+    app.run(debug=app.debug, use_reloader=True)
