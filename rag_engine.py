@@ -14,12 +14,20 @@ DOCS_DIR = 'docs'
 VECTOR_DB_DIR = 'vector_db'
 COLLECTION_NAME = 'email_knowledge'
 
+import threading
+
 # Lazy loader for Qdrant client to avoid lock issues in Flask debug mode
 _qdrant = None
+_qdrant_lock = threading.Lock()
+
 def get_qdrant():
     global _qdrant
-    if _qdrant is None:
-        _qdrant = QdrantClient(path=VECTOR_DB_DIR)
+    with _qdrant_lock:
+        if _qdrant is None:
+            # Ensure the directory exists before connecting
+            if not os.path.exists(VECTOR_DB_DIR):
+                os.makedirs(VECTOR_DB_DIR)
+            _qdrant = QdrantClient(path=VECTOR_DB_DIR)
     return _qdrant
 
 # genai_client is fine but we'll use a similar approach for consistency if needed
@@ -133,13 +141,27 @@ def query_knowledge_base(query_text, limit=3):
         return ""
 
     qdrant = get_qdrant()
-    search_result = qdrant.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=query_vector,
-        limit=limit
-    )
-    
-    context = "\n---\n".join([hit.payload['text'] for hit in search_result])
+    try:
+        # Using query_points instead of search as it's the newer, more robust API 
+        # that handles both legacy search and new query features.
+        search_result = qdrant.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            limit=limit
+        ).points
+    except AttributeError:
+        # Fallback for very old versions or specific configurations if query_points is missing
+        if hasattr(qdrant, 'search'):
+            search_result = qdrant.search(
+                collection_name=COLLECTION_NAME,
+                query_vector=query_vector,
+                limit=limit
+            )
+        else:
+            print("Error: Neither 'query_points' nor 'search' available on QdrantClient")
+            return ""
+
+    context = "\n---\n".join([hit.payload['text'] for hit in search_result if hit.payload])
     return context
 
 if __name__ == "__main__":
